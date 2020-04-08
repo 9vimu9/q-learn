@@ -4,14 +4,15 @@ import pyautogui
 from PIL import Image
 
 import cv2
-from mss import mss
+# GNU/Linux
+from mss.linux import MSS as mss
 import numpy
 import pickle  # to save/load Q-Tables
 import random
 
 TOP = 432    
 LEFT = 180#172 dino touch value
-WIDTH = 50 
+WIDTH = 70 
 HEIGHT = 30
 
 CHECKPOINT_TOP = 320
@@ -32,8 +33,8 @@ start_q_table = "q_table.pickle"
 
 # if we have a pickled Q table, we'll put the filename of it here.
 
-SPEED_MIN = 50
-SPEED_MAX = 200
+SPEED_MIN = 10
+SPEED_MAX = 250                 
 
 DISTANCE_MIN = 0
 DISTANCE_MAX = WIDTH
@@ -43,9 +44,10 @@ ACTION_JUMP = 1
 ACTION_NOTHING = 0
 
 CAUGHT_PANELTY = 1000
-SERVIVE_PANELTY = 500
-LEARNING_RATE = 0.1
-DISCOUNT = 0.95
+SERVIVE_PANELTY = 200
+SUCESSFULL_JUMP = 1000
+LEARNING_RATE = 0.01
+DISCOUNT = 0.8          
 
 q_table = {}
 
@@ -81,9 +83,15 @@ else:
         #load q table from file
 
 
-def get_distance(img) : 
+def get_distance(img) :
+    
+    if last_distance == DISTANCE_MIN or last_distance is None :
+        width= DISTANCE_MAX
+    else :
+        width = last_distance
+
     for y in range(0, HEIGHT-1) :
-        for x in range(0, WIDTH-1) :   
+        for x in range(0, width) :   
             pixel = img[y][x]
             if pixel == 255 :
                 return x  
@@ -119,7 +127,7 @@ while True:
         if speed == 0 :
             speed = SPEED_MIN
         previous_100_point_time = current_time_sec
-        print(speed)
+        # print(speed)
 
     previous_checkpoint_img = checkpoint_img
 
@@ -145,10 +153,7 @@ while True:
     new_obs = (distance,speed)  # new observation
 
     if is_over :
-        print("caught---------")
-        with open('q_table.pickle', 'wb') as f:
-            pickle.dump(q_table, f)
-        pyautogui.press("space")
+       
         reward = -CAUGHT_PANELTY
 
     else :
@@ -167,6 +172,10 @@ while True:
             
             obs = (last_distance,last_speed)
             action = numpy.argmax(q_table[obs])
+
+            if action == ACTION_JUMP :
+                reward = SUCESSFULL_JUMP
+
             max_future_q = numpy.max(q_table[new_obs])  # max Q value for this new obs
             current_q = q_table[obs][action]  # current Q for our chosen action
             new_q = (1 - LEARNING_RATE) * current_q + LEARNING_RATE * (reward + DISCOUNT * max_future_q)
@@ -178,6 +187,10 @@ while True:
     if is_over :
         last_distance = DISTANCE_MIN
         last_speed = SPEED_MIN
+        print("caught---------")
+        with open('q_table.pickle', 'wb') as f:
+            pickle.dump(q_table, f)
+        pyautogui.press("space")
     else : 
         last_distance = distance
         last_speed = speed
